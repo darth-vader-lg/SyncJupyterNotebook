@@ -90,7 +90,7 @@ namespace SyncJupyterNotebook
       internal static Item Parse(string text)
       {
          var parser = new NotebookParser(text);
-         var root = new Item("Root");
+         var root = new Item(null);
          parser.ParseValue(root);
          return root;
       }
@@ -157,8 +157,11 @@ namespace SyncJupyterNotebook
                if (!ParseSection(item, "[]", sectionItem =>
                {
                   var arrayItem = new Item(null);
-                  while (ParseValue(arrayItem) && c == ',') {
-                     sectionItem.Add(arrayItem);
+                  while (ParseValue(arrayItem)) {
+                     if (arrayItem.Count > 0 || !string.IsNullOrEmpty(arrayItem.Value))
+                        sectionItem.Add(arrayItem);
+                     if (c != ',')
+                        break;
                      arrayItem = new Item(null);
                   }
                   return true;
@@ -170,8 +173,10 @@ namespace SyncJupyterNotebook
                {
                   var cPrev = '\0';
                   var value = new StringBuilder();
+                  value.Append('"');
                   while (ipynb[ix] != '\"' || cPrev == '\\')
                      value.Append(cPrev = GetChar());
+                  value.Append('"');
                   item.Value = value.ToString();
                   return true;
                }))
@@ -252,6 +257,37 @@ namespace SyncJupyterNotebook
             }
             var newKey = $"[{Count}]";
             return newKey;
+         }
+         /// <summary>
+         /// Conversione a stringa
+         /// </summary>
+         /// <returns>La rappresentazione in stringa</returns>
+         public override string ToString() => ToString(0);
+         /// <summary>
+         /// Conversione a stringa
+         /// </summary>
+         /// <param name="col">Colonna di partenza</param>
+         /// <param name="indent">Indentazione</param>
+         /// <returns>La rappresentazione in stringa</returns>
+         public string ToString(int col, int indent = 2)
+         {
+            var result = new StringBuilder();
+            var strIndent = new string(' ', col);
+            if (Count < 1 && !string.IsNullOrEmpty(Value))
+               result.Append($"{strIndent}{(!string.IsNullOrEmpty(Name) ? $"\"{Name}\": " : "")}{Value}");
+            if (Count > 0 || string.IsNullOrEmpty(Value)) {
+               var brackets = Count > 0 && !string.IsNullOrEmpty(this[0].Name) ? "{}" : "[]";
+               result.Append($"{strIndent}{(!string.IsNullOrEmpty(Name) ? $"\"{Name}\": " : "")}{brackets[0]}");
+               if (Count == 0)
+                  result.Append($"{brackets[1]}");
+               else {
+                  result.Append('\n');
+                  for (var i = 0; i < Count; i++)
+                     result.Append($"{this[i].ToString(col + indent)}{(i == Count - 1 ? "\n" : ",\n")}");
+                  result.Append($"{strIndent}{brackets[1]}");
+               }
+            }
+            return result.ToString();
          }
          #endregion
       }

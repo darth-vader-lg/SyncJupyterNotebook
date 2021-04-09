@@ -40,6 +40,10 @@ namespace SyncJupyterNotebook
                Console.WriteLine(line.Value);
             }
          }
+         var str = root.ToString();
+         using var writer = new StreamWriter(opt.Path) { NewLine = "\n" };
+         writer.Write(str);
+         
          return 0;
       }
       /// <summary>
