@@ -121,41 +121,30 @@ namespace SyncJupyterNotebook
          foreach (var cell in root["cells"]) {
             // Sorgente
             var source = cell["source"];
-            // Loop su tutte le linee del sorgente
-            for (var i = 0; i < source.Count; i++) {
-               // Verifica se la linea contiene il marcatore di inzio file python
-               var lineStart = source[i].Value;
-               if (lineStart.Contains(opt.BeginModule)) {
-                  lineStart = lineStart[1..^1];
-                  if (lineStart.Trim().StartsWith("#")) {
-                     var fileName = lineStart.Substring(lineStart.IndexOf(opt.BeginModule) + opt.BeginModule.Length).Trim();
-                     fileName = fileName.Replace("\\n", "");
-                     fileName = Path.Combine(Path.GetDirectoryName(opt.Path), fileName);
-                     if (!File.Exists(fileName)) {
-                        Console.Error.WriteLine($"Warning: the file {fileName} doesn't exist!");
-                        continue;
-                     }
-                     // Cerca il marcatore di fine file python
-                     var j = i + 1;
-                     while (j < source.Count) {
-                        var lineEnd = source[j].Value;
-                        if (lineEnd.Contains(opt.EndModule)) {
-                           if (lineEnd[1..^1].Trim().StartsWith("#"))
-                              break;
-                        }
-                        j++;
-                     }
-                     // Rimuove tutte le linee comprese fra i marcatori
-                     for (var k = 0; k < j - i - 1; k++)
-                        source.RemoveAt(i + 1);
-                     // Inserisce il file python
-                     using var reader = new StreamReader(fileName);
-                     for (var pyLine = reader.ReadLine(); pyLine != null; pyLine = reader.ReadLine()) {
-                        pyLine = pyLine.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        source.Insert(i + 1, new NotebookParser.Item(null, $"\"{pyLine}\\n\""));
-                        i++;
-                     }
-                  }
+            // Loop sui blocchi contenenti codice python
+            var blocks = GetPythonBlocks(opt, source);
+            foreach (var block in blocks) {
+               // Verifica esistenza file python
+               if (!File.Exists(block.pyFileName)) {
+                  Console.Error.WriteLine($"Warning: the file {block.pyFileName} doesn't exist. It will be created.");
+                  continue;
+               }
+               // Indice blocco di partenza
+               var ix = source.IndexOf(block.start);
+               if (ix < 0)
+                  continue;
+               ix++;
+               // Crea la directory del file Python
+               var pyFileDir = Path.GetDirectoryName(block.pyFileName);
+               if (!Directory.Exists(pyFileDir))
+                  Directory.CreateDirectory(pyFileDir);
+               // Crea o sovrascrive il file python
+               using var writer = new StreamWriter(block.pyFileName);
+               // Elimina i blocchi dal notebook
+               while (ix < source.Count && source[ix] != block.end) {
+                  var line = source[ix++].Value[1..^1].Replace("\\\\", "\\").Replace("\\\"", "\"").TrimEnd();
+                  line = line.EndsWith("\\n") ? line[..^2] : line;
+                  writer.WriteLine(line);
                }
             }
          }
