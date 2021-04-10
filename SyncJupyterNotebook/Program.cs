@@ -25,12 +25,92 @@ namespace SyncJupyterNotebook
             errors => 1);
       }
       /// <summary>
+      /// Restituisce i blocchi contenenti moduli di codice python all'interno di un sorgente di un notebook
+      /// </summary>
+      /// <param name="opt">Opzioni</param>
+      /// <param name="source">Sorgente del notebook</param>
+      /// <returns>L'array di blocchi di codice python</returns>
+      static private (NotebookParser.Item start, NotebookParser.Item end, string pyFileName)[] GetPythonBlocks(OptionsSyncBase opt, NotebookParser.Item source)
+      {
+         // Loop su tutte le linee del sorgente
+         var result = new List<(NotebookParser.Item start, NotebookParser.Item end, string pyFileName)>();
+         for (var i = 0; i < source.Count; i++) {
+            // Verifica se la linea contiene il marcatore di inzio file python
+            var lineStart = source[i].Value;
+            if (lineStart.Contains(opt.BeginModule)) {
+               lineStart = lineStart[1..^1];
+               if (lineStart.Trim().StartsWith("#")) {
+                  var fileName = lineStart.Substring(lineStart.IndexOf(opt.BeginModule) + opt.BeginModule.Length).Trim();
+                  fileName = fileName.Replace("\\n", "");
+                  fileName = Path.Combine(Path.GetDirectoryName(opt.Path), fileName);
+                  // Cerca il marcatore di fine file python
+                  var j = i + 1;
+                  while (j < source.Count) {
+                     var lineEnd = source[j].Value;
+                     if (lineEnd.Contains(opt.EndModule)) {
+                        if (lineEnd[1..^1].Trim().StartsWith("#"))
+                           break;
+                     }
+                     j++;
+                  }
+                  result.Add((start: source[i], end: j < source.Count ? source[j] : null, pyFileName: fileName)); 
+               }
+            }
+         }
+         return result.ToArray();
+      }
+      /// <summary>
       /// Funzione di sincronizzazione del notebook
       /// </summary>
       /// <param name="opt">Opzioni</param>
       static private int RunSyncNotebook(OptionsSyncNotebook opt)
       {
          // Verifica esistenza del file
+         if (!File.Exists(opt.Path)) {
+            Console.Error.WriteLine($"Error: the notebook {opt.Path} doesn't exist!");
+            return 1;
+         }
+         // Parserizza il notebook
+         var root = NotebookParser.Parse(File.ReadAllText(opt.Path));
+         // Loop su tutte le celle
+         foreach (var cell in root["cells"]) {
+            // Sorgente
+            var source = cell["source"];
+            // Loop sui blocchi contenenti codice python
+            var blocks = GetPythonBlocks(opt, source);
+            foreach (var block in blocks) {
+               // Verifica esistenza file python
+               if (!File.Exists(block.pyFileName)) {
+                  Console.Error.WriteLine($"Warning: the file {block.pyFileName} doesn't exist!");
+                  continue;
+               }
+               // Indice blocco di partenza
+               var ix = source.IndexOf(block.start);
+               if (ix < 0)
+                  continue;
+               ix++;
+               // Elimina i blocchi dal notebook
+               while (ix < source.Count && source[ix] != block.end)
+                  source.RemoveAt(ix);
+               // Inserisce il file python
+               using var reader = new StreamReader(block.pyFileName);
+               for (var pyLine = reader.ReadLine(); pyLine != null; pyLine = reader.ReadLine()) {
+                  pyLine = pyLine.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                  source.Insert(ix++, new NotebookParser.Item(null, $"\"{pyLine}\\n\""));
+               }
+            }
+         }
+         var str = root.ToString();
+         using var writer = new StreamWriter(opt.Path) { NewLine = "\n" };
+         writer.Write(str);
+         return 0;
+      }
+      /// <summary>
+      /// Funzione di sincronizzazione dei files python
+      /// </summary>
+      /// <param name="opt">Opzioni</param>
+      static private int RunSyncPython(OptionsSyncPython opt)
+      {
          if (!File.Exists(opt.Path)) {
             Console.Error.WriteLine($"Error: the notebook {opt.Path} doesn't exist!");
             return 1;
@@ -78,22 +158,6 @@ namespace SyncJupyterNotebook
                   }
                }
             }
-         }
-         var str = root.ToString();
-         using var writer = new StreamWriter(Path.Combine(Path.GetDirectoryName(opt.Path), Path.GetFileNameWithoutExtension(opt.Path) + "Sync" + Path.GetExtension(opt.Path))) { NewLine = "\n" };
-         writer.Write(str);
-         
-         return 0;
-      }
-      /// <summary>
-      /// Funzione di sincronizzazione dei files python
-      /// </summary>
-      /// <param name="opt">Opzioni</param>
-      static private int RunSyncPython(OptionsSyncPython opt)
-      {
-         if (!File.Exists(opt.Path)) {
-            Console.Error.WriteLine($"Error: the notebook {opt.Path} doesn't exist!");
-            return 1;
          }
          return 0;
       }
