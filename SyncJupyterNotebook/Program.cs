@@ -30,18 +30,57 @@ namespace SyncJupyterNotebook
       /// <param name="opt">Opzioni</param>
       static private int RunSyncNotebook(OptionsSyncNotebook opt)
       {
+         // Verifica esistenza del file
          if (!File.Exists(opt.Path)) {
             Console.Error.WriteLine($"Error: the notebook {opt.Path} doesn't exist!");
             return 1;
          }
+         // Parserizza il notebook
          var root = NotebookParser.Parse(File.ReadAllText(opt.Path));
+         // Loop su tutte le celle
          foreach (var cell in root["cells"]) {
-            foreach (var line in cell["source"]) {
-               Console.WriteLine(line.Value);
+            // Sorgente
+            var source = cell["source"];
+            // Loop su tutte le linee del sorgente
+            for (var i = 0; i < source.Count; i++) {
+               // Verifica se la linea contiene il marcatore di inzio file python
+               var lineStart = source[i].Value;
+               if (lineStart.Contains(opt.BeginModule)) {
+                  lineStart = lineStart[1..^1];
+                  if (lineStart.Trim().StartsWith("#")) {
+                     var fileName = lineStart.Substring(lineStart.IndexOf(opt.BeginModule) + opt.BeginModule.Length).Trim();
+                     fileName = fileName.Replace("\\n", "");
+                     fileName = Path.Combine(Path.GetDirectoryName(opt.Path), fileName);
+                     if (!File.Exists(fileName)) {
+                        Console.Error.WriteLine($"Warning: the file {fileName} doesn't exist!");
+                        continue;
+                     }
+                     // Cerca il marcatore di fine file python
+                     var j = i + 1;
+                     while (j < source.Count) {
+                        var lineEnd = source[j].Value;
+                        if (lineEnd.Contains(opt.EndModule)) {
+                           if (lineEnd[1..^1].Trim().StartsWith("#"))
+                              break;
+                        }
+                        j++;
+                     }
+                     // Rimuove tutte le linee comprese fra i marcatori
+                     for (var k = 0; k < j - i - 1; k++)
+                        source.RemoveAt(i + 1);
+                     // Inserisce il file python
+                     using var reader = new StreamReader(fileName);
+                     for (var pyLine = reader.ReadLine(); pyLine != null; pyLine = reader.ReadLine()) {
+                        pyLine = pyLine.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        source.Insert(i + 1, new NotebookParser.Item(null, $"\"{pyLine}\\n\""));
+                        i++;
+                     }
+                  }
+               }
             }
          }
          var str = root.ToString();
-         using var writer = new StreamWriter(opt.Path) { NewLine = "\n" };
+         using var writer = new StreamWriter(Path.Combine(Path.GetDirectoryName(opt.Path), Path.GetFileNameWithoutExtension(opt.Path) + "Sync" + Path.GetExtension(opt.Path))) { NewLine = "\n" };
          writer.Write(str);
          
          return 0;
@@ -61,20 +100,42 @@ namespace SyncJupyterNotebook
       #endregion
    }
 
+   partial class Program // OptionsSyncBase
+   {
+      /// <summary>
+      /// Opzioni di base
+      /// </summary>
+      class OptionsSyncBase
+      {
+         #region Properties
+         /// <summary>
+         /// Path della directory radice dei repositories
+         /// </summary>
+         [Option('b', "begin-module", Default = "begin-module:", HelpText = "The marker for the begin of the python module referenced in the notebook.")]
+         public string BeginModule { get; set; }
+         /// <summary>
+         /// Path della directory radice dei repositories
+         /// </summary>
+         [Option('e', "end-module", Default = "end-module", HelpText = "The marker for the end of the python module referenced in the notebook.")]
+         public string EndModule { get; set; }
+         /// <summary>
+         /// Path della directory radice dei repositories
+         /// </summary>
+         [Value(0, Default = ".", HelpText = "The path of notebook.")]
+         public string Path { get; set; }
+         #endregion
+      }
+   }
+
    partial class Program // OptionsSyncNotebook
    {
       /// <summary>
       /// Opzioni di sincronizzazione Python -> Notebook
       /// </summary>
       [Verb("nb", HelpText = "Syncronize a notebook with the related python files.")]
-      class OptionsSyncNotebook
+      class OptionsSyncNotebook : OptionsSyncBase
       {
          #region Properties
-         /// <summary>
-         /// Path della directory radice dei repositories
-         /// </summary>
-         [Value(0, Default = ".", HelpText = "The path of notebook.")]
-         public string Path { get; set; }
          /// <summary>
          /// Esempi di utilizzo
          /// </summary>
@@ -93,17 +154,12 @@ namespace SyncJupyterNotebook
    partial class Program // OptionsSyncPython
    {
       /// <summary>
-      /// Opzioni di sincronizzazione Python -> Notebook
+      /// Opzioni di sincronizzazione Notebook -> Python
       /// </summary>
       [Verb("py", HelpText = "Syncronize the python files with the content of a notebook.")]
-      class OptionsSyncPython
+      class OptionsSyncPython : OptionsSyncBase
       {
          #region Properties
-         /// <summary>
-         /// Path della directory radice dei repositories
-         /// </summary>
-         [Value(0, Default = ".", HelpText = "The path of notebook.")]
-         public string Path { get; set; }
          /// <summary>
          /// Esempi di utilizzo
          /// </summary>

@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Collections.ObjectModel;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 
@@ -215,13 +216,27 @@ namespace SyncJupyterNotebook
       /// Item del file
       /// </summary>
       [DebuggerDisplay("{DebuggerDisplay,nq}")]
-      internal class Item : KeyedCollection<string, Item>
+      internal class Item : IList<Item>
       {
+         #region Fields
+         /// <summary>
+         /// Oggetti figli
+         /// </summary>
+         private readonly List<Item> children = new();
+         #endregion
          #region Properties
+         /// <summary>
+         /// Numero di oggetti foglio
+         /// </summary>
+         public int Count => ((ICollection<Item>)children).Count;
          /// <summary>
          /// Funzione di visualizzazione di debug
          /// </summary>
          private string DebuggerDisplay => $"{Name}{(Count > 0 ? $", [{Count}]" : "")}{(Value != null ? $", {Value}" : "")}";
+         /// <summary>
+         /// Stato di readonly della lista di figli
+         /// </summary>
+         public bool IsReadOnly => ((ICollection<Item>)children).IsReadOnly;
          /// <summary>
          /// Nome dell'item
          /// </summary>
@@ -230,6 +245,28 @@ namespace SyncJupyterNotebook
          /// Valore
          /// </summary>
          public string Value { get; set; }
+         /// <summary>
+         /// Indicizzatore
+         /// </summary>
+         /// <param name="index">Indice</param>
+         /// <returns>L'item</returns>
+         public Item this[int index] { get => ((IList<Item>)children)[index]; set => ((IList<Item>)children)[index] = value; }
+         /// <summary>
+         /// Indicizzatore per nome
+         /// </summary>
+         /// <param name="name">Nome item</param>
+         /// <returns>L'item</returns>
+         public Item this[string name]
+         {
+            get => children.Find(item => item.Name == name);
+            set
+            {
+               var ix = children.FindIndex(item => item.Name == name);
+               if (ix < 0)
+                  throw new ArgumentException($"The item {name} doesn't exist", nameof(name));
+               children[ix] = value;
+            }
+         }
          #endregion
          #region Methods
          /// <summary>
@@ -243,21 +280,59 @@ namespace SyncJupyterNotebook
             Value = value;
          }
          /// <summary>
-         /// Restituisce la chiave per l'item
+         /// Aggiunge un elemento
          /// </summary>
-         /// <param name="item">L'item</param>
-         /// <returns>La chiave</returns>
-         protected override string GetKeyForItem(Item item)
-         {
-            if (!string.IsNullOrEmpty(item.Name))
-               return item.Name;
-            for (var i = 0; i < Count; i++) {
-               if (this[i] == item)
-                  return $"[{i}]";
-            }
-            var newKey = $"[{Count}]";
-            return newKey;
-         }
+         /// <param name="item">Elemento da aggiungere</param>
+         public void Add(Item item) => ((ICollection<Item>)children).Add(item);
+         /// <summary>
+         /// Cancella la lista dei figli
+         /// </summary>
+         public void Clear() => ((ICollection<Item>)children).Clear();
+         /// <summary>
+         /// Determina se un figlio e' contenuto
+         /// </summary>
+         /// <param name="item">L'elemento da verificare</param>
+         /// <returns>true se l'elemento e' presente</returns>
+         public bool Contains(Item item) => ((ICollection<Item>)children).Contains(item);
+         /// <summary>
+         /// Effettua una copia su un array
+         /// </summary>
+         /// <param name="array">Array in cui copiare</param>
+         /// <param name="arrayIndex">Indice di partenza</param>
+         public void CopyTo(Item[] array, int arrayIndex) => ((ICollection<Item>)children).CopyTo(array, arrayIndex);
+         /// <summary>
+         /// Restituisce l'enumeratore
+         /// </summary>
+         /// <returns>L'enumeratore</returns>
+         public IEnumerator<Item> GetEnumerator() => ((IEnumerable<Item>)children).GetEnumerator();
+         /// <summary>
+         /// Restituisce l'enumeratore
+         /// </summary>
+         /// <returns>L'enumeratore</returns>
+         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)children).GetEnumerator();
+         /// <summary>
+         /// Indice di un item
+         /// </summary>
+         /// <param name="item"></param>
+         /// <returns></returns>
+         public int IndexOf(Item item) => ((IList<Item>)children).IndexOf(item);
+         /// <summary>
+         /// Inserisce un item in una posizione
+         /// </summary>
+         /// <param name="index">Indice di iinserimento</param>
+         /// <param name="item">L'item da inserire</param>
+         public void Insert(int index, Item item) => ((IList<Item>)children).Insert(index, item);
+         /// <summary>
+         /// Rimuove un elemento
+         /// </summary>
+         /// <param name="item"></param>
+         /// <returns></returns>
+         public bool Remove(Item item) => ((ICollection<Item>)children).Remove(item);
+         /// <summary>
+         /// Rimuove un elemento ad un determinato indice
+         /// </summary>
+         /// <param name="index">Indice di rimozione</param>
+         public void RemoveAt(int index) => ((IList<Item>)children).RemoveAt(index);
          /// <summary>
          /// Conversione a stringa
          /// </summary>
