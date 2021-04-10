@@ -80,8 +80,9 @@ namespace SyncJupyterNotebook
             var blocks = GetPythonBlocks(opt, source);
             foreach (var block in blocks) {
                // Verifica esistenza file python
-               if (!File.Exists(block.pyFileName)) {
-                  Console.Error.WriteLine($"Warning: the file {block.pyFileName} doesn't exist!");
+               var pyFileName = Path.GetFullPath(block.pyFileName);
+               if (!File.Exists(pyFileName)) {
+                  Console.Error.WriteLine($"Warning: the file {pyFileName} doesn't exist!");
                   continue;
                }
                // Indice blocco di partenza
@@ -93,7 +94,7 @@ namespace SyncJupyterNotebook
                while (ix < source.Count && source[ix] != block.end)
                   source.RemoveAt(ix);
                // Inserisce il file python
-               using var reader = new StreamReader(block.pyFileName);
+               using var reader = new StreamReader(pyFileName);
                for (var pyLine = reader.ReadLine(); pyLine != null; pyLine = reader.ReadLine()) {
                   pyLine = pyLine.Replace("\\", "\\\\").Replace("\"", "\\\"");
                   source.Insert(ix++, new NotebookParser.Item(null, $"\"{pyLine}\\n\""));
@@ -135,11 +136,12 @@ namespace SyncJupyterNotebook
                   continue;
                ix++;
                // Crea la directory del file Python
-               var pyFileDir = Path.GetDirectoryName(block.pyFileName);
+               var pyFileName = Path.GetFullPath(block.pyFileName);
+               var pyFileDir = Path.GetDirectoryName(pyFileName);
                if (!Directory.Exists(pyFileDir))
                   Directory.CreateDirectory(pyFileDir);
                // Crea o sovrascrive il file python
-               using var writer = new StreamWriter(block.pyFileName);
+               using var writer = new StreamWriter(pyFileName);
                // Elimina i blocchi dal notebook
                while (ix < source.Count && source[ix] != block.end) {
                   var line = source[ix++].Value[1..^1].Replace("\\\\", "\\").Replace("\\\"", "\"").TrimEnd();
