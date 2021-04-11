@@ -126,10 +126,8 @@ namespace SyncJupyterNotebook
             var blocks = GetPythonBlocks(opt, source);
             foreach (var block in blocks) {
                // Verifica esistenza file python
-               if (!File.Exists(block.pyFileName)) {
+               if (!File.Exists(block.pyFileName))
                   Console.Error.WriteLine($"Warning: the file {block.pyFileName} doesn't exist. It will be created.");
-                  continue;
-               }
                // Indice blocco di partenza
                var ix = source.IndexOf(block.start);
                if (ix < 0)
