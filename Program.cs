@@ -68,7 +68,7 @@ namespace SyncJupyterNotebook
       /// <param name="source">Sorgente del notebook</param>
       /// <returns>L'array di blocchi di codice python</returns>
       static private (NotebookParser.Item start, NotebookParser.Item end, string pyFileName)[] GetPythonBlocks(OptionsSyncBase opt, NotebookParser.Item source) =>
-         GetBlocks(opt.BeginModule, opt.EndModule, Path.GetFullPath(Path.GetDirectoryName(opt.Path)), source);
+         GetBlocks(opt.BeginModule, opt.EndModule, Path.GetDirectoryName(Path.GetFullPath(opt.Path)), source);
       /// <summary>
       /// Restituisce i blocchi contenenti file di testo all'interno di un sorgente di un notebook
       /// </summary>
@@ -76,7 +76,7 @@ namespace SyncJupyterNotebook
       /// <param name="source">Sorgente del notebook</param>
       /// <returns>L'array di blocchi di testo</returns>
       static private (NotebookParser.Item start, NotebookParser.Item end, string txtFileName)[] GetTextBlocks(OptionsSyncBase opt, NotebookParser.Item source) =>
-         GetBlocks(opt.BeginText, opt.EndText, Path.GetFullPath(Path.GetDirectoryName(opt.Path)), source);
+         GetBlocks(opt.BeginText, opt.EndText, Path.GetDirectoryName(Path.GetFullPath(opt.Path)), source);
       /// <summary>
       /// Funzione di sincronizzazione del notebook
       /// </summary>
