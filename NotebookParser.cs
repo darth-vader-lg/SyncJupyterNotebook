@@ -71,7 +71,7 @@ namespace SyncJupyterNotebook
       /// <returns>Il carattere letto</returns>
       private char GetChar()
       {
-         if (ix >= ipynb.Length)
+         if (ix >= ipynb.Length - 1)
             return c = '\0';
          c = ipynb[ix++];
          if (c == '\n') {
